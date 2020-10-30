@@ -2,16 +2,17 @@ import io
 import os
 import sys
 import tempfile
+from typing import Optional
 
 import pytest
 
-from rich.color import Color, ColorSystem
-from rich.console import Console, ConsoleOptions
 from rich import errors
+from rich.color import ColorSystem
+from rich.console import CaptureError, Console, ConsoleOptions, render_group
+from rich.measure import measure_renderables
+from rich.pager import SystemPager
 from rich.panel import Panel
-from rich.segment import Segment
 from rich.style import Style
-from rich.theme import Theme
 
 
 def test_dumb_terminal():
@@ -45,7 +46,11 @@ def test_truecolor_terminal():
 
 def test_console_options_update():
     options = ConsoleOptions(
-        min_width=10, max_width=20, is_terminal=False, encoding="utf-8"
+        legacy_windows=False,
+        min_width=10,
+        max_width=20,
+        is_terminal=False,
+        encoding="utf-8",
     )
     options1 = options.update(width=15)
     assert options1.min_width == 15 and options1.max_width == 15
@@ -139,6 +144,11 @@ def test_get_style():
     console.get_style("repr.brace") == Style(bold=True)
 
 
+def test_get_style_default():
+    console = Console()
+    console.get_style("foobar", default="red") == Style(color="red")
+
+
 def test_get_style_error():
     console = Console()
     with pytest.raises(errors.MissingStyle):
@@ -160,10 +170,49 @@ def test_control():
     assert console.file.getvalue() == "FOOBAR\n"
 
 
+def test_capture():
+    console = Console()
+    with console.capture() as capture:
+        with pytest.raises(CaptureError):
+            capture.get()
+        console.print("Hello")
+    assert capture.get() == "Hello\n"
+
+
 def test_input(monkeypatch, capsys):
-    monkeypatch.setattr("builtins.input", lambda: "bar")
+    def fake_input(prompt):
+        console.file.write(prompt)
+        return "bar"
+
+    monkeypatch.setattr("builtins.input", fake_input)
     console = Console()
     user_input = console.input(prompt="foo:")
+    assert capsys.readouterr().out == "foo:"
+    assert user_input == "bar"
+
+
+def test_input_legacy_windows(monkeypatch, capsys):
+    def fake_input(prompt):
+        console.file.write(prompt)
+        return "bar"
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    console = Console(legacy_windows=True)
+    user_input = console.input(prompt="foo:")
+    assert capsys.readouterr().out == "foo:"
+    assert user_input == "bar"
+
+
+def test_input_password(monkeypatch, capsys):
+    def fake_input(prompt, stream=None):
+        console.file.write(prompt)
+        return "bar"
+
+    import rich.console
+
+    monkeypatch.setattr(rich.console, "getpass", fake_input)
+    console = Console()
+    user_input = console.input(prompt="foo:", password=True)
     assert capsys.readouterr().out == "foo:"
     assert user_input == "bar"
 
@@ -196,7 +245,7 @@ def test_justify_renderable_none():
     console = Console(
         file=io.StringIO(), force_terminal=True, width=20, legacy_windows=False
     )
-    console.print(Panel("FOO", expand=False), justify=None)
+    console.print(Panel("FOO", expand=False, padding=0), justify=None)
     assert console.file.getvalue() == "╭───╮\n│FOO│\n╰───╯\n"
 
 
@@ -204,7 +253,7 @@ def test_justify_renderable_left():
     console = Console(
         file=io.StringIO(), force_terminal=True, width=10, legacy_windows=False
     )
-    console.print(Panel("FOO", expand=False), justify="left")
+    console.print(Panel("FOO", expand=False, padding=0), justify="left")
     assert console.file.getvalue() == "╭───╮     \n│FOO│     \n╰───╯     \n"
 
 
@@ -212,7 +261,7 @@ def test_justify_renderable_center():
     console = Console(
         file=io.StringIO(), force_terminal=True, width=10, legacy_windows=False
     )
-    console.print(Panel("FOO", expand=False), justify="center")
+    console.print(Panel("FOO", expand=False, padding=0), justify="center")
     assert console.file.getvalue() == "  ╭───╮   \n  │FOO│   \n  ╰───╯   \n"
 
 
@@ -220,7 +269,7 @@ def test_justify_renderable_right():
     console = Console(
         file=io.StringIO(), force_terminal=True, width=20, legacy_windows=False
     )
-    console.print(Panel("FOO", expand=False), justify="right")
+    console.print(Panel("FOO", expand=False, padding=0), justify="right")
     assert (
         console.file.getvalue()
         == "               ╭───╮\n               │FOO│\n               ╰───╯\n"
@@ -251,7 +300,7 @@ def test_export_html():
     console = Console(record=True, width=100)
     console.print("[b]foo [link=https://example.org]Click[/link]")
     html = console.export_html()
-    expected = '<!DOCTYPE html>\n<head>\n<style>\n.r1 {font-weight: bold}\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier New\',monospace"><span class="r1">foo </span><a href="https://example.org"><span class="r1">Click</span></a>\n</pre>\n    </code>\n</body>\n</html>\n'
+    expected = '<!DOCTYPE html>\n<head>\n<meta charset="UTF-8">\n<style>\n.r1 {font-weight: bold}\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier New\',monospace"><span class="r1">foo </span><a href="https://example.org"><span class="r1">Click</span></a>\n</pre>\n    </code>\n</body>\n</html>\n'
     assert html == expected
 
 
@@ -259,7 +308,7 @@ def test_export_html_inline():
     console = Console(record=True, width=100)
     console.print("[b]foo [link=https://example.org]Click[/link]")
     html = console.export_html(inline_styles=True)
-    expected = '<!DOCTYPE html>\n<head>\n<style>\n\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier New\',monospace"><span style="font-weight: bold">foo </span><a href="https://example.org"><span style="font-weight: bold">Click</span></a>\n</pre>\n    </code>\n</body>\n</html>\n'
+    expected = '<!DOCTYPE html>\n<head>\n<meta charset="UTF-8">\n<style>\n\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier New\',monospace"><span style="font-weight: bold">foo </span><a href="https://example.org"><span style="font-weight: bold">Click</span></a>\n</pre>\n    </code>\n</body>\n</html>\n'
     assert html == expected
 
 
@@ -274,7 +323,7 @@ def test_save_text():
 
 
 def test_save_html():
-    expected = "<!DOCTYPE html>\n<head>\n<style>\n\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style=\"font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">foo\n</pre>\n    </code>\n</body>\n</html>\n"
+    expected = "<!DOCTYPE html>\n<head>\n<meta charset=\"UTF-8\">\n<style>\n\nbody {\n    color: #000000;\n    background-color: #ffffff;\n}\n</style>\n</head>\n<html>\n<body>\n    <code>\n        <pre style=\"font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">foo\n</pre>\n    </code>\n</body>\n</html>\n"
     console = Console(record=True, width=100)
     console.print("foo")
     with tempfile.TemporaryDirectory() as path:
@@ -288,3 +337,86 @@ def test_no_wrap():
     console = Console(width=10, file=io.StringIO())
     console.print("foo bar baz egg", no_wrap=True)
     assert console.file.getvalue() == "foo bar ba\n"
+
+
+def test_soft_wrap():
+    console = Console(width=10, file=io.StringIO())
+    console.print("foo bar baz egg", soft_wrap=True)
+    assert console.file.getvalue() == "foo bar baz egg\n"
+
+
+def test_unicode_error() -> None:
+    try:
+        with tempfile.TemporaryFile("wt", encoding="ascii") as tmpfile:
+            console = Console(file=tmpfile)
+            console.print(":vampire:")
+    except UnicodeEncodeError as error:
+        assert "PYTHONIOENCODING" in str(error)
+    else:
+        assert False, "didn't raise UnicodeEncodeError"
+
+
+def test_bell() -> None:
+    console = Console(force_terminal=True)
+    console.begin_capture()
+    console.bell()
+    assert console.end_capture() == "\x07"
+
+
+def test_pager() -> None:
+    console = Console()
+
+    pager_content: Optional[str] = None
+
+    def mock_pager(content: str) -> None:
+        nonlocal pager_content
+        pager_content = content
+
+    pager = SystemPager()
+    pager._pager = mock_pager
+
+    with console.pager(pager):
+        console.print("[bold]Hello World")
+    assert pager_content == "Hello World\n"
+
+    with console.pager(pager, styles=True, links=False):
+        console.print("[bold link https:/example.org]Hello World")
+
+    assert pager_content == "Hello World\n"
+
+
+def test_out() -> None:
+    console = Console(width=10)
+    console.begin_capture()
+    console.out(*(["foo bar"] * 5), sep=".", end="X")
+    assert console.end_capture() == "foo bar.foo bar.foo bar.foo bar.foo barX"
+
+
+def test_render_group() -> None:
+    @render_group(fit=False)
+    def renderable():
+        yield "one"
+        yield "two"
+        yield "three"  # <- largest width of 5
+        yield "four"
+
+    renderables = [renderable() for _ in range(4)]
+    console = Console(width=42)
+    min_width, _ = measure_renderables(console, renderables, 42)
+    assert min_width == 42
+
+
+def test_render_group_fit() -> None:
+    @render_group()
+    def renderable():
+        yield "one"
+        yield "two"
+        yield "three"  # <- largest width of 5
+        yield "four"
+
+    renderables = [renderable() for _ in range(4)]
+
+    console = Console(width=42)
+
+    min_width, _ = measure_renderables(console, renderables, 42)
+    assert min_width == 5

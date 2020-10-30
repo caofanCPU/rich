@@ -34,7 +34,7 @@ If you intend to use Rich with Jupyter then there are some additional dependenci
 Quick Start
 -----------
 
-The quickest way to get up and running with Rich is to import the alternative ``print`` function which may be used as a drop-in replacement for Python's built in function. Here's how you would do that::
+The quickest way to get up and running with Rich is to import the alternative ``print`` function which takes the same arguments as the built-in ``print`` and may be used as a drop-in replacement. Here's how you would do that::
 
     from rich import print
 
@@ -84,3 +84,14 @@ You can also use this feature to try out Rich *renderables*. Here's an example::
     >>> Panel.fit("[bold yellow]Hi, I'm a Panel", border_style="red")
 
 Read on to learn more about Rich renderables.
+
+
+Rich Inspector
+--------------
+
+Rich has an :meth:`~rich.inspect` function which can generate a report on any Python object. It is a fantastic debug aid, and a good example of the output that Rich can generate. Here is a simple example::
+
+    >>> from rich import inspect
+    >>> from rich.color import Color
+    >>> color = Color.parse("red")
+    >>> inspect(color, methods=True)

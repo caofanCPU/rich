@@ -33,15 +33,45 @@ class Measurement(NamedTuple):
 
     def with_maximum(self, width: int) -> "Measurement":
         """Get a RenderableWith where the widths are <= width.
-        
+
         Args:
             width (int): Maximum desired width.
-        
+
         Returns:
-            RenderableWidth: new RenderableWidth object.
+            Measurement: New Measurement object.
         """
         minimum, maximum = self
         return Measurement(min(minimum, width), min(maximum, width))
+
+    def with_minimum(self, width: int) -> "Measurement":
+        """Get a RenderableWith where the widths are >= width.
+
+        Args:
+            width (int): Minimum desired width.
+
+        Returns:
+            Measurement: New Measurement object.
+        """
+        minimum, maximum = self
+        width = max(0, width)
+        return Measurement(max(minimum, width), max(maximum, width))
+
+    def clamp(self, min_width: int = None, max_width: int = None) -> "Measurement":
+        """Clamp a measurement within the specified range.
+
+        Args:
+            min_width (int): Minimum desired width, or ``None`` for no minimum. Defaults to None.
+            max_width (int): Maximum desired width, or ``None`` for no maximum. Defaults to None.
+
+        Returns:
+            Measurement: New Measurement object.
+        """
+        measurement = self
+        if min_width is not None:
+            measurement = measurement.with_minimum(min_width)
+        if max_width is not None:
+            measurement = measurement.with_maximum(max_width)
+        return measurement
 
     @classmethod
     def get(
@@ -52,7 +82,7 @@ class Measurement(NamedTuple):
         Args:
             console (~rich.console.Console): Console instance.
             renderable (RenderableType): An object that may be rendered with Rich.
-            max_width (int, optional): The maximum width available, or None to use console.width. 
+            max_width (int, optional): The maximum width available, or None to use console.width.
                 Defaults to None.
 
         Raises:
@@ -61,12 +91,17 @@ class Measurement(NamedTuple):
         Returns:
             Measurement: Measurement object containing range of character widths required to render the object.
         """
+        from rich.console import RichCast
 
         _max_width = console.width if max_width is None else max_width
+        if _max_width < 1:
+            return Measurement(0, 0)
         if isinstance(renderable, str):
             renderable = console.render_str(renderable)
 
-        renderable = getattr(renderable, "__rich__", renderable)
+        if isinstance(renderable, RichCast):
+            renderable = renderable.__rich__()
+
         if is_renderable(renderable):
             get_console_width = getattr(renderable, "__rich_measure__", None)
             if get_console_width is not None:
@@ -75,9 +110,11 @@ class Measurement(NamedTuple):
                     .normalize()
                     .with_maximum(_max_width)
                 )
+                if render_width.maximum < 1:
+                    return Measurement(0, 0)
                 return render_width.normalize()
             else:
-                return Measurement(1, _max_width)
+                return Measurement(0, _max_width)
         else:
             raise errors.NotRenderableError(
                 f"Unable to get render width for {renderable!r}; "
@@ -99,7 +136,8 @@ def measure_renderables(
         Measurement: Measurement object containing range of character widths required to
         contain all given renderables.
     """
-
+    if not renderables:
+        return Measurement(0, 0)
     get_measurement = Measurement.get
     measurements = [
         get_measurement(console, renderable, max_width) for renderable in renderables

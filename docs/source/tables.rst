@@ -19,7 +19,7 @@ Here's an example::
     table.add_row("Dec 20, 2019", "Star Wars: The Rise of Skywalker", "$952,110,690")
     table.add_row("May 25, 2018", "Solo: A Star Wars Story", "$393,151,347")
     table.add_row("Dec 15, 2017", "Star Wars Ep. V111: The Last Jedi", "$1,332,539,889")
-    table.add_row("Dec 16, 2016", "Rouge One: A Star Wars Story", "$1,332,439,889")
+    table.add_row("Dec 16, 2016", "Rogue One: A Star Wars Story", "$1,332,439,889")
 
     console = Console()
     console.print(table)
@@ -35,7 +35,7 @@ This produces the following output:
     │<span style="color: #008080"> Dec 20, 2019 </span>│<span style="color: #800080"> Star Wars: The Rise of Skywalker  </span>│<span style="color: #008000">   $952,110,690 </span>│
     │<span style="color: #008080"> May 25, 2018 </span>│<span style="color: #800080"> Solo: A Star Wars Story           </span>│<span style="color: #008000">   $393,151,347 </span>│
     │<span style="color: #008080"> Dec 15, 2017 </span>│<span style="color: #800080"> Star Wars Ep. V111: The Last Jedi </span>│<span style="color: #008000"> $1,332,539,889 </span>│
-    │<span style="color: #008080"> Dec 16, 2016 </span>│<span style="color: #800080"> Rouge One: A Star Wars Story      </span>│<span style="color: #008000"> $1,332,439,889 </span>│
+    │<span style="color: #008080"> Dec 16, 2016 </span>│<span style="color: #800080"> Rogue One: A Star Wars Story      </span>│<span style="color: #008000"> $1,332,439,889 </span>│
     └──────────────┴───────────────────────────────────┴────────────────┘
     </pre>
 
@@ -59,15 +59,20 @@ You may also add columns by specifying them in the positional arguments of the :
 
     table = Table("Released", "Title", "Box Office", title="Star Wars Movies") 
 
-This allows you to specify the text of the column only. If you want to set other attributes, such as width, style, and alignment, you can add an :class:`~rich.table.Column` class. Here's an example::
+This allows you to specify the text of the column only. If you want to set other attributes, such as width and style, you can add an :class:`~rich.table.Column` class. Here's an example::
 
     from rich.table import Column
     table = Table(
         "Released",
         "Title",
-        Column("Box Office", align="right"),
+        Column(header="Box Office", align="right"),
         title="Star Wars Movies"
     )
+
+Lines
+~~~~~
+
+By default, Tables will show a line under the header only. If you want to show lines between all rows add ``show_lines=True`` to the constructor.
 
 Grids
 ~~~~~

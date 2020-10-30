@@ -5,7 +5,7 @@ from time import time
 
 import pytest
 
-from rich.bar import Bar
+from rich.progress_bar import ProgressBar
 from rich.console import Console
 from rich.highlighter import NullHighlighter
 from rich.progress import (
@@ -19,6 +19,7 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
     track,
+    _TrackThread,
     TaskID,
     _RefreshThread,
 )
@@ -48,7 +49,7 @@ def test_bar_columns():
     assert bar_column.bar_width == 100
     task = Task(1, "test", 100, 20, _get_time=lambda: 1.0)
     bar = bar_column(task)
-    assert isinstance(bar, Bar)
+    assert isinstance(bar, ProgressBar)
     assert bar.completed == 20
     assert bar.total == 100
 
@@ -76,6 +77,24 @@ def test_time_remaining_column():
 
     text = column(FakeTask(1, "test", 100, 20, _get_time=lambda: 1.0))
     assert str(text) == "0:01:00"
+
+
+def test_download_progress_uses_decimal_units() -> None:
+
+    column = DownloadColumn()
+    test_task = Task(1, "test", 1000, 500, _get_time=lambda: 1.0)
+    rendered_progress = str(column.render(test_task))
+    expected = "0.5/1.0 KB"
+    assert rendered_progress == expected
+
+
+def test_download_progress_uses_binary_units() -> None:
+
+    column = DownloadColumn(binary_units=True)
+    test_task = Task(1, "test", 1024, 512, _get_time=lambda: 1.0)
+    rendered_progress = str(column.render(test_task))
+    expected = "0.5/1.0 KiB"
+    assert rendered_progress == expected
 
 
 def test_task_ids():
@@ -177,7 +196,15 @@ def test_track() -> None:
         assert value == next(expected_values)
     result = console.file.getvalue()
     print(repr(result))
-    expected = "\x1b[?25ltest \x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m  0%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━\x1b[0m\x1b[38;5;237m╺\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m 33%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\x1b[38;2;249;38;114m╸\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━\x1b[0m \x1b[35m 67%\x1b[0m \x1b[36m0:00:06\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\n\x1b[?25h"
+    expected = "\x1b[?25l\r\x1b[2Ktest \x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m  0%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━\x1b[0m\x1b[38;5;237m╺\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m 33%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\x1b[38;2;249;38;114m╸\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━\x1b[0m \x1b[35m 67%\x1b[0m \x1b[36m0:00:06\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\n\x1b[?25h"
+    print("--")
+    print("RESULT:")
+    print(result)
+    print(repr(result))
+    print("EXPECTED:")
+    print(expected)
+    print(repr(expected))
+
     assert result == expected
 
     with pytest.raises(ValueError):
@@ -198,11 +225,18 @@ def test_progress_track() -> None:
     )
     test = ["foo", "bar", "baz"]
     expected_values = iter(test)
-    for value in progress.track(test, description="test"):
-        assert value == next(expected_values)
+    with progress:
+        for value in progress.track(test, description="test"):
+            assert value == next(expected_values)
     result = console.file.getvalue()
     print(repr(result))
-    expected = "\x1b[?25ltest \x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m  0%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━\x1b[0m\x1b[38;5;237m╺\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m 33%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\x1b[38;2;249;38;114m╸\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━\x1b[0m \x1b[35m 67%\x1b[0m \x1b[36m0:00:06\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\n\x1b[?25h"
+    expected = "\x1b[?25l\r\x1b[2Ktest \x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m  0%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━\x1b[0m\x1b[38;5;237m╺\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m 33%\x1b[0m \x1b[36m-:--:--\x1b[0m\r\x1b[2Ktest \x1b[38;2;249;38;114m━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\x1b[38;2;249;38;114m╸\x1b[0m\x1b[38;5;237m━━━━━━━━━━━━━\x1b[0m \x1b[35m 67%\x1b[0m \x1b[36m0:00:06\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\r\x1b[2Ktest \x1b[38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m \x1b[35m100%\x1b[0m \x1b[36m0:00:00\x1b[0m\n\x1b[?25h"
+
+    print(expected)
+    print(repr(expected))
+    print(result)
+    print(repr(result))
+
     assert result == expected
 
     with pytest.raises(ValueError):
@@ -297,6 +331,45 @@ def test_refresh_thread() -> None:
     progress = Progress()
     thread = _RefreshThread(progress, 10)
     assert thread.progress == progress
+
+
+def test_track_thread() -> None:
+    progress = Progress()
+    task_id = progress.add_task("foo")
+    track_thread = _TrackThread(progress, task_id, 0.1)
+    assert track_thread.completed == 0
+    from time import sleep
+
+    with track_thread:
+        track_thread.completed = 1
+        sleep(0.3)
+        assert progress.tasks[task_id].completed >= 1
+        track_thread.completed += 1
+
+
+def test_reset() -> None:
+    progress = Progress()
+    task_id = progress.add_task("foo")
+    progress.advance(task_id, 1)
+    progress.advance(task_id, 1)
+    progress.advance(task_id, 1)
+    progress.advance(task_id, 7)
+    task = progress.tasks[task_id]
+    assert task.completed == 10
+    progress.reset(
+        task_id,
+        total=200,
+        completed=20,
+        visible=False,
+        description="bar",
+        example="egg",
+    )
+    assert task.total == 200
+    assert task.completed == 20
+    assert task.visible == False
+    assert task.description == "bar"
+    assert task.fields == {"example": "egg"}
+    assert not task._progress
 
 
 if __name__ == "__main__":

@@ -86,8 +86,19 @@ Ultimately the style definition is parsed and an instance of a :class:`~rich.sty
 
 It is slightly quicker to construct a Style class like this, since a style definition takes a little time to parse -- but only on the first call, as Rich will cache parsed style definitions.
 
-You can parse a style definition explicitly with the :meth:`~rich.style.Style.parse` method.
+Styles may be combined by adding them together, which is useful if you want to modify attributes of an existing style. Here's an example::
 
+    from rich.console import Console
+    from rich.style import Style
+    console = Console()
+
+    base_style = Style.parse("cyan")
+    console.print("Hello, World", style = base_style + Style(underline=True))
+
+You can parse a style definition explicitly with the :meth:`~rich.style.Style.parse` method, which accepts the style definition and returns a Style instance. For example, the following two lines are equivalent::
+    
+    style = Style(color="magenta", bgcolor="yellow", italic=True)
+    style = Style.parse("italic magenta on yellow")
 
 .. _themes:
 
@@ -110,17 +121,35 @@ To use a style theme, construct a :class:`~rich.theme.Theme` instance and pass i
     })
     console = Console(theme=custom_theme)
     console.print("This is information", style="info")
-    console.print("Something terrible happened!", style="danger")
-
-You can also use these custom styles via markup. For example::
-
     console.print("[warning]The pod bay doors are locked[/warning]")
+    console.print("Something terrible happened!", style="danger")
 
 
 .. note::
     style names must be lower case, start with a letter, and only contain letters or the characters ``"."``, ``"-"``, ``"_"``.
 
-If you prefer you can write your styles in an external config file rather than in Python. Here's an example of the format::
+
+Customizing Defaults
+~~~~~~~~~~~~~~~~~~~~
+
+The Theme class will inherit the default styles builtin to Rich. If your custom theme contains the name of an existing style, it will replace it. This allows you to customize the defaults as easily as you can create your own styles. For instance, here's how you can change how Rich highlights numbers::
+
+    from rich.console import Console
+    from rich.theme import Theme
+    console = Console(theme=Theme({"repr.number": "bold green blink"}))
+    console.print("The total is 128")
+
+You can disable inheriting the default theme by setting ``inherit=False`` on the :class:`rich.theme.Theme` constructor.
+
+To see the default theme, run the following command::
+
+    python -m rich.theme
+
+
+Loading Themes
+~~~~~~~~~~~~~~
+
+If you prefer, you can write your styles in an external config file rather than in Python. Here's an example of the format::
 
     [styles]
     info = dim cyan
@@ -128,7 +157,3 @@ If you prefer you can write your styles in an external config file rather than i
     danger = bold red
 
 You can read these files with the :meth:`~rich.theme.Theme.read` method.
-
-To see the default theme, run the following command::
-
-    python -m rich.theme

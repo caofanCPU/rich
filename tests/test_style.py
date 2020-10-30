@@ -71,6 +71,10 @@ def test_hash():
     assert isinstance(hash(Style()), int)
 
 
+def test_empty():
+    assert Style.null() == Style()
+
+
 def test_bool():
     assert bool(Style()) is False
     assert bool(Style(bold=True)) is True
@@ -186,3 +190,9 @@ def test_style_stack():
 def test_pick_first():
     with pytest.raises(ValueError):
         Style.pick_first()
+
+
+def test_background_style():
+    assert Style(bold=True, color="yellow", bgcolor="red").background_style == Style(
+        bgcolor="red"
+    )

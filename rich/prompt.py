@@ -29,7 +29,7 @@ class InvalidResponse(PromptError):
 
 class PromptBase(Generic[PromptType]):
     """Ask the user for input until a valid response is received. This is the base class, see one of
-    the concrete classes for examples. 
+    the concrete classes for examples.
 
     Args:
         prompt (TextType, optional): Prompt text. Defaults to "".
@@ -184,7 +184,11 @@ class PromptBase(Generic[PromptType]):
 
     @classmethod
     def get_input(
-        cls, console: Console, prompt: TextType, password: bool, stream: TextIO = None,
+        cls,
+        console: Console,
+        prompt: TextType,
+        password: bool,
+        stream: TextIO = None,
     ) -> str:
         """Get input from user.
 
@@ -281,10 +285,10 @@ class PromptBase(Generic[PromptType]):
 
 class Prompt(PromptBase[str]):
     """A prompt that returns a str.
-    
+
     Example:
         >>> name = Prompt.ask("Enter your name")
-    
+
 
     """
 
@@ -293,10 +297,10 @@ class Prompt(PromptBase[str]):
 
 class IntPrompt(PromptBase[int]):
     """A prompt that returns an integer.
-    
+
     Example:
         >>> burrito_count = IntPrompt.ask("How many burritos do you want to order", prompt_suffix="? ")
-    
+
     """
 
     response_type = int
@@ -305,10 +309,10 @@ class IntPrompt(PromptBase[int]):
 
 class FloatPrompt(PromptBase[int]):
     """A prompt that returns a float.
-    
+
     Example:
         >>> temperature = FloatPrompt.ask("Enter desired temperature")
-    
+
     """
 
     response_type = float
@@ -317,11 +321,11 @@ class FloatPrompt(PromptBase[int]):
 
 class Confirm(PromptBase[bool]):
     """A yes / no confirmation prompt.
-    
+
     Example:
         >>> if Confirm.ask("Continue"):
                 run_job()
-    
+
     """
 
     response_type = bool
@@ -350,7 +354,7 @@ if __name__ == "__main__":  # pragma: no cover
     if Confirm.ask("Run [i]prompt[/i] tests?", default=True):
         while True:
             result = IntPrompt.ask(
-                ":rocket: Enter a number betwen [b]1[/b] and [b]10[/b]", default=5
+                ":rocket: Enter a number between [b]1[/b] and [b]10[/b]", default=5
             )
             if result >= 1 and result <= 10:
                 break

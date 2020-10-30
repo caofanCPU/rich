@@ -5,7 +5,7 @@
 [![Rich blog](https://img.shields.io/badge/blog-rich%20news-yellowgreen)](https://www.willmcgugan.com/tag/rich/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/willmcgugan.svg?style=social)](https://twitter.com/willmcgugan)
 
-[中文 readme](https://github.com/willmcgugan/rich/blob/master/README.cn.md)
+[中文 readme](https://github.com/willmcgugan/rich/blob/master/README.cn.md) • [lengua española readme](https://github.com/willmcgugan/rich/blob/master/README.es.md)
 
 Rich is a Python library for _rich_ text and beautiful formatting in the terminal.
 
@@ -53,6 +53,15 @@ Rich can be installed in the Python REPL, so that any data structures will be pr
 ```
 
 ![REPL](https://github.com/willmcgugan/rich/raw/master/imgs/repl.png)
+
+## Rich Inspect
+
+Rich has an [inspect](https://rich.readthedocs.io/en/latest/reference/init.html?highlight=inspect#rich.inspect) function which can produce a report on any Python object, such as class, instance, or builtin.
+
+```python
+>>> from rich import inspect
+>>> inspect(str, methods=True)
+```
 
 ## Using the Console
 
@@ -308,7 +317,7 @@ Here are a few projects using Rich:
 - [intel/cve-bin-tool](https://github.com/intel/cve-bin-tool)
   This tool scans for a number of common, vulnerable components (openssl, libpng, libxml2, expat and a few others) to let you know if your system includes common libraries with known vulnerabilities.
 - [nf-core/tools](https://github.com/nf)
-  Python package with helper tools for the nf-core community.-core/tools)
+  Python package with helper tools for the nf-core community.
 - [cansarigol/pdbr](https://github.com/cansarigol/pdbr)
   pdb + Rich library for enhanced debugging
 - [plant99/felicette](https://github.com/plant99/felicette)
@@ -317,4 +326,8 @@ Here are a few projects using Rich:
   Automate & test 10x faster with Selenium & pytest. Batteries included.
 - [smacke/ffsubsync](https://github.com/smacke/ffsubsync)
   Automagically synchronize subtitles with video.
+- [tryolabs/norfair](https://github.com/tryolabs/norfair)
+  Lightweight Python library for adding real-time 2D object tracking to any detector.
+- [ansible/ansible-lint](https://github.com/ansible/ansible-lint) Ansible-lint checks playbooks for practices and behaviour that could potentially be improved
+- [ansible-community/molecule](https://github.com/ansible-community/molecule) Ansible Molecule testing framework
 - +[Many more](https://github.com/willmcgugan/rich/network/dependents)!

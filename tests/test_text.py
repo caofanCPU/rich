@@ -467,7 +467,11 @@ def test_print(print_text, result):
 
 @pytest.mark.parametrize(
     "print_text,result",
-    [(("."), ".X"), ((".", "."), "..X"), (("Hello", "World", "!"), "HelloWorld!X"),],
+    [
+        (("."), ".X"),
+        ((".", "."), "..X"),
+        (("Hello", "World", "!"), "HelloWorld!X"),
+    ],
 )
 def test_print_sep_end(print_text, result):
     console = Console(record=True, file=StringIO())
@@ -477,16 +481,20 @@ def test_print_sep_end(print_text, result):
 
 def test_tabs_to_spaces():
     test = Text("\tHello\tWorld", tab_size=8)
-    assert test.tabs_to_spaces().plain == "        Hello   World"
+    test.expand_tabs()
+    assert test.plain == "        Hello   World"
 
     test = Text("\tHello\tWorld", tab_size=4)
-    assert test.tabs_to_spaces().plain == "    Hello   World"
+    test.expand_tabs()
+    assert test.plain == "    Hello   World"
 
     test = Text(".\t..\t...\t....\t", tab_size=4)
-    assert test.tabs_to_spaces().plain == ".   ..  ... ....    "
+    test.expand_tabs()
+    assert test.plain == ".   ..  ... ....    "
 
     test = Text("No Tabs")
-    assert test.tabs_to_spaces().plain == "No Tabs"
+    test.expand_tabs()
+    assert test.plain == "No Tabs"
 
 
 def test_markup_switch():
@@ -556,7 +564,11 @@ def test_truncate_ellipsis(input, count, expected):
 
 @pytest.mark.parametrize(
     "input, count, expected",
-    [("Hello", 5, "Hello"), ("Hello", 10, "Hello     "), ("Hello", 3, "He…"),],
+    [
+        ("Hello", 5, "Hello"),
+        ("Hello", 10, "Hello     "),
+        ("Hello", 3, "He…"),
+    ],
 )
 def test_truncate_ellipsis_pad(input, count, expected):
     text = Text(input)
@@ -586,3 +598,41 @@ def test_align_center():
     test = Text("foo")
     test.align("center", 10)
     assert test.plain == "   foo    "
+
+
+def test_detect_indentation():
+    test = """\
+foo
+    bar
+    """
+    assert Text(test).detect_indentation() == 4
+    test = """\
+foo
+    bar
+      baz
+    """
+    assert Text(test).detect_indentation() == 2
+    assert Text("").detect_indentation() == 1
+    assert Text(" ").detect_indentation() == 1
+
+
+def test_indentation_guides():
+    test = Text(
+        """\
+for a in range(10):
+    print(a)
+
+foo = [
+    1,
+    {
+        2
+    }
+]
+
+"""
+    )
+    result = test.with_indent_guides()
+    print(result.plain)
+    print(repr(result.plain))
+    expected = "for a in range(10):\n│   print(a)\n\nfoo = [\n│   1,\n│   {\n│   │   2\n│   }\n]\n"
+    assert result.plain == expected

@@ -17,7 +17,7 @@ class Columns(JupyterMixin):
     """Display renderables in neat columns.
 
     Args:
-        renderables (Iterable[RenderableType]): Any number of Rich renderables (including str). 
+        renderables (Iterable[RenderableType]): Any number of Rich renderables (including str).
         width (int, optional): The desired width of the columns, or None to auto detect. Defaults to None.
         padding (PaddingDimensions, optional): Optional padding around cells. Defaults to (0, 1).
         expand (bool, optional): Expand columns to full width. Defaults to False.
@@ -121,7 +121,7 @@ class Columns(JupyterMixin):
         table.title = self.title
 
         if self.width is not None:
-            column_count = max_width // self.width
+            column_count = (max_width) // (self.width + width_padding)
             for _ in range(column_count):
                 table.add_column(width=self.width)
         else:

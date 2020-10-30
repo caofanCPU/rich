@@ -93,8 +93,7 @@ class Lines:
         self, console: "Console", options: "ConsoleOptions"
     ) -> "RenderResult":
         """Console render method to insert line-breaks."""
-        for line in self._lines:
-            yield line
+        yield from self._lines
 
     def append(self, line: "Text") -> None:
         self._lines.append(line)
@@ -110,13 +109,13 @@ class Lines:
         overflow: "OverflowMethod" = "fold",
     ) -> None:
         """Justify and overflow text to a given width.
-        
+
         Args:
             console (Console): Console instance.
             width (int): Number of characters per line.
             justify (str, optional): Default justify method for text: "left", "center", "full" or "right". Defaults to "left".
-            overflow (str, optional): Default overflow for text: "crop", "fold", or "ellipisis". Defaults to "fold".            
-            
+            overflow (str, optional): Default overflow for text: "crop", "fold", or "ellipsis". Defaults to "fold".
+
         """
         from .text import Text
 
@@ -149,18 +148,13 @@ class Lines:
                         num_spaces += 1
                         index = (index + 1) % len(spaces)
                 tokens: List[Text] = []
-                index = 0
                 for index, (word, next_word) in enumerate(
                     zip_longest(words, words[1:])
                 ):
                     tokens.append(word)
                     if index < len(spaces):
-                        if next_word is None:
-                            space_style = Style()
-                        else:
-                            style = word.get_style_at_offset(console, -1)
-                            next_style = next_word.get_style_at_offset(console, 0)
-                            space_style = style if style == next_style else line.style
+                        style = word.get_style_at_offset(console, -1)
+                        next_style = next_word.get_style_at_offset(console, 0)
+                        space_style = style if style == next_style else line.style
                         tokens.append(Text(" " * spaces[index], style=space_style))
-                    index += 1
                 self[line_index] = Text("").join(tokens)

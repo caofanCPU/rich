@@ -10,7 +10,7 @@ from typing import Iterable, List, Tuple
 
 class Segment(NamedTuple):
     """A piece of text with associated style.
-    
+
     Args:
         text (str): A piece of text.
         style (:class:`~rich.style.Style`, optional): An optional style to apply to the text.
@@ -90,7 +90,7 @@ class Segment(NamedTuple):
 
         Returns:
             Iterable[Segment]: And iterable of Segment instances.
-        
+
         """
         if is_control:
             return filter(attrgetter("is_control"), segments)
@@ -183,7 +183,7 @@ class Segment(NamedTuple):
             segments (Iterable[Segment]): A list of segments in a single line.
             length (int): The desired width of the line.
             style (Style, optional): The style of padding if used (space on the end). Defaults to None.
-            pad (bool, optional): Pad lines with spaces if they are shorter than `length`. Defaults to True. 
+            pad (bool, optional): Pad lines with spaces if they are shorter than `length`. Defaults to True.
 
         Returns:
             List[Segment]: A line of segments with the desired length.
@@ -299,6 +299,30 @@ class Segment(NamedTuple):
                 yield last_segment
                 last_segment = segment
         yield last_segment
+
+    @classmethod
+    def strip_links(cls, segments: Iterable["Segment"]) -> Iterable["Segment"]:
+        """Remove all links from an iterable of styles.
+
+        Yields:
+            Segment: Segments with link removed.
+        """
+        for segment in segments:
+            if segment.is_control or segment.style is None:
+                yield segment
+            else:
+                text, style, _is_control = segment
+                yield cls(text, style.update_link(None) if style else None)
+
+    @classmethod
+    def strip_styles(cls, segments: Iterable["Segment"]) -> Iterable["Segment"]:
+        """Remove all styles from an iterable of segments.
+
+        Yields:
+            Segment: Segments with styles replace with None
+        """
+        for text, _style, is_control in segments:
+            yield cls(text, None, is_control)
 
 
 if __name__ == "__main__":  # pragma: no cover

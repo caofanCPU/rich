@@ -8,7 +8,7 @@ from . import errors
 from .color import Color, ColorParseError, ColorSystem, blend_rgb
 from .terminal_theme import DEFAULT_TERMINAL_THEME, TerminalTheme
 
-# Style instances and style definitions are often interchangable
+# Style instances and style definitions are often interchangeable
 StyleType = Union[str, "Style"]
 
 
@@ -29,10 +29,10 @@ class _Bit:
 class Style:
     """A terminal style.
 
-    A terminal style consists of a color (`color`), a backround color (`bgcolor`), and a number of attributes, such
+    A terminal style consists of a color (`color`), a background color (`bgcolor`), and a number of attributes, such
     as bold, italic etc. The attributes have 3 states: they can either be on
     (``True``), off (``False``), or not set (``None``).
-    
+
     Args:
         color (Union[Color, str], optional): Color of terminal text. Defaults to None.
         bgcolor (Union[Color, str], optional): Color of terminal background. Defaults to None.
@@ -50,13 +50,15 @@ class Style:
         encircle (bool, optional): Enable encircled text. Defaults to None.
         overline (bool, optional): Enable overlined text. Defaults to None.
         link (str, link): Link URL. Defaults to None.
-    
+
     """
 
     _color: Optional[Color]
     _bgcolor: Optional[Color]
     _attributes: int
     _set_attributes: int
+    _hash: int
+    _null: bool
 
     __slots__ = [
         "_color",
@@ -67,6 +69,8 @@ class Style:
         "_link_id",
         "_ansi",
         "_style_definition",
+        "_hash",
+        "_null",
     ]
 
     # maps bits on to SGR parameter
@@ -114,23 +118,6 @@ class Style:
 
         self._color = None if color is None else _make_color(color)
         self._bgcolor = None if bgcolor is None else _make_color(bgcolor)
-        self._attributes = sum(
-            (
-                bold and 1 or 0,
-                dim and 2 or 0,
-                italic and 4 or 0,
-                underline and 8 or 0,
-                blink and 16 or 0,
-                blink2 and 32 or 0,
-                reverse and 64 or 0,
-                conceal and 128 or 0,
-                strike and 256 or 0,
-                underline2 and 512 or 0,
-                frame and 1024 or 0,
-                encircle and 2048 or 0,
-                overline and 4096 or 0,
-            )
-        )
         self._set_attributes = sum(
             (
                 bold is not None,
@@ -148,8 +135,45 @@ class Style:
                 overline is not None and 4096,
             )
         )
+        self._attributes = (
+            sum(
+                (
+                    bold and 1 or 0,
+                    dim and 2 or 0,
+                    italic and 4 or 0,
+                    underline and 8 or 0,
+                    blink and 16 or 0,
+                    blink2 and 32 or 0,
+                    reverse and 64 or 0,
+                    conceal and 128 or 0,
+                    strike and 256 or 0,
+                    underline2 and 512 or 0,
+                    frame and 1024 or 0,
+                    encircle and 2048 or 0,
+                    overline and 4096 or 0,
+                )
+            )
+            if self._set_attributes
+            else 0
+        )
+
         self._link = link
         self._link_id = f"{time()}-{randint(0, 999999)}" if link else ""
+        self._hash = hash(
+            (
+                self._color,
+                self._bgcolor,
+                self._attributes,
+                self._set_attributes,
+                link,
+            )
+        )
+        self._null = not (self._set_attributes or color or bgcolor or link)
+
+    @classmethod
+    def null(cls) -> "Style":
+        """Create an 'null' style, equivalent to Style(), but more performant."""
+        return NULL_STYLE
 
     bold = _Bit(0)
     dim = _Bit(1)
@@ -218,7 +242,7 @@ class Style:
 
     def __bool__(self) -> bool:
         """A Style is false if it has no attributes, colors, or links."""
-        return bool(self._set_attributes or self._color or self._bgcolor or self._link)
+        return not self._null
 
     def _make_ansi_codes(self, color_system: ColorSystem) -> str:
         """Generate ANSI codes for this style.
@@ -267,10 +291,10 @@ class Style:
     def normalize(cls, style: str) -> str:
         """Normalize a style definition so that styles with the same effect have the same string
         representation.
-        
+
         Args:
             style (str): A style definition.
-        
+
         Returns:
             str: Normal form of style definition.
         """
@@ -303,15 +327,7 @@ class Style:
         )
 
     def __hash__(self) -> int:
-        return hash(
-            (
-                self._color,
-                self._bgcolor,
-                self._attributes,
-                self._set_attributes,
-                self._link,
-            )
-        )
+        return self._hash
 
     @property
     def color(self) -> Optional[Color]:
@@ -328,14 +344,27 @@ class Style:
         """Link text, if set."""
         return self._link
 
+    @property
+    def transparent_background(self) -> bool:
+        """Check if the style specified a transparent background."""
+        return self.bgcolor is None or self.bgcolor.is_default
+
+    @property
+    def background_style(self) -> "Style":
+        """A Style with background only."""
+        return Style(bgcolor=self.bgcolor)
+
     @classmethod
     @lru_cache(maxsize=1024)
     def parse(cls, style_definition: str) -> "Style":
         """Parse a style definition.
-        
+
+        Args:
+            style_definition (str): A string containing a style.
+
         Raises:
-            errors.StyleSyntaxError: If the style definition syntax is invalid.            
-        
+            errors.StyleSyntaxError: If the style definition syntax is invalid.
+
         Returns:
             `Style`: A Style instance.
         """
@@ -382,8 +411,8 @@ class Style:
                     Color.parse(word) is None
                 except ColorParseError as error:
                     raise errors.StyleSyntaxError(
-                        f"unable to parse {word} in {style_definition!r}; {error}"
-                    )
+                        f"unable to parse {word!r} as background color; {error}"
+                    ) from None
                 bgcolor = word
 
             elif word == "not":
@@ -391,7 +420,7 @@ class Style:
                 attribute = style_attributes.get(word)
                 if attribute is None:
                     raise errors.StyleSyntaxError(
-                        f"expected style attribute after 'not', found {original_word!r}"
+                        f"expected style attribute after 'not', found {word!r}"
                     )
                 attributes[attribute] = False
 
@@ -409,8 +438,8 @@ class Style:
                     Color.parse(word)
                 except ColorParseError as error:
                     raise errors.StyleSyntaxError(
-                        f"unable to parse {word!r} in style {style_definition!r}; {error}"
-                    )
+                        f"unable to parse {word!r} as color; {error}"
+                    ) from None
                 color = word
         style = Style(color=color, bgcolor=bgcolor, link=link, **attributes)
         return style
@@ -454,34 +483,37 @@ class Style:
     @classmethod
     def combine(cls, styles: Iterable["Style"]) -> "Style":
         """Combine styles and get result.
-        
+
         Args:
             styles (Iterable[Style]): Styles to combine.
-        
+
         Returns:
             Style: A new style instance.
         """
-
-        return sum(styles, Style())
+        iter_styles = iter(styles)
+        return sum(iter_styles, next(iter_styles))
 
     @classmethod
     def chain(cls, *styles: "Style") -> "Style":
         """Combine styles from positional argument in to a single style.
-        
+
         Args:
             *styles (Iterable[Style]): Styles to combine.
-        
+
         Returns:
             Style: A new style instance.
         """
-        return sum(styles, Style())
+        iter_styles = iter(styles)
+        return sum(iter_styles, next(iter_styles))
 
     def copy(self) -> "Style":
         """Get a copy of this style.
-        
+
         Returns:
             Style: A new Style instance with identical attributes.
         """
+        if self._null:
+            return NULL_STYLE
         style = self.__new__(Style)
         style._ansi = self._ansi
         style._style_definition = self._style_definition
@@ -491,6 +523,30 @@ class Style:
         style._set_attributes = self._set_attributes
         style._link = self._link
         style._link_id = f"{time()}-{randint(0, 999999)}" if self._link else ""
+        style._hash = self._hash
+        style._null = False
+        return style
+
+    def update_link(self, link: str = None) -> "Style":
+        """Get a copy with a different value for link.
+
+        Args:
+            link (str, optional): New value for link. Defaults to None.
+
+        Returns:
+            Style: A new Style instance.
+        """
+        style = self.__new__(Style)
+        style._ansi = self._ansi
+        style._style_definition = self._style_definition
+        style._color = self._color
+        style._bgcolor = self._bgcolor
+        style._attributes = self._attributes
+        style._set_attributes = self._set_attributes
+        style._link = link
+        style._link_id = f"{time()}-{randint(0, 999999)}" if link else ""
+        style._hash = self._hash
+        style._null = False
         return style
 
     def render(
@@ -501,11 +557,11 @@ class Style:
         legacy_windows: bool = False,
     ) -> str:
         """Render the ANSI codes for the style.
-        
+
         Args:
             text (str, optional): A string to style. Defaults to "".
             color_system (Optional[ColorSystem], optional): Color system to render to. Defaults to ColorSystem.TRUECOLOR.
-        
+
         Returns:
             str: A string containing ANSI style codes.
         """
@@ -517,28 +573,27 @@ class Style:
             rendered = (
                 f"\x1b]8;id={self._link_id};{self._link}\x1b\\{rendered}\x1b]8;;\x1b\\"
             )
-
         return rendered
 
     def test(self, text: Optional[str] = None) -> None:
         """Write text with style directly to terminal.
 
         This method is for testing purposes only.
-        
+
         Args:
             text (Optional[str], optional): Text to style or None for style name.
-        
-        Returns:
-            None:
+
         """
         text = text or str(self)
         sys.stdout.write(f"{self.render(text)}\n")
 
     def __add__(self, style: Optional["Style"]) -> "Style":
-        if style is None:
-            return self
-        if not isinstance(style, Style):
+        if not (isinstance(style, Style) or style is None):
             return NotImplemented  # type: ignore
+        if style is None or style._null:
+            return self
+        if self._null:
+            return style
         new_style = self.__new__(Style)
         new_style._ansi = None
         new_style._style_definition = None
@@ -550,7 +605,12 @@ class Style:
         new_style._set_attributes = self._set_attributes | style._set_attributes
         new_style._link = style._link or self._link
         new_style._link_id = style._link_id or self._link_id
+        new_style._hash = style._hash
+        new_style._null = self._null or style._null
         return new_style
+
+
+NULL_STYLE = Style()
 
 
 class StyleStack:
@@ -571,7 +631,7 @@ class StyleStack:
 
     def push(self, style: Style) -> None:
         """Push a new style on to the stack.
-        
+
         Args:
             style (Style): New style to combine with current style.
         """
@@ -579,7 +639,7 @@ class StyleStack:
 
     def pop(self) -> Style:
         """Pop last style and discard.
-        
+
         Returns:
             Style: New current style (also available as stack.current)
         """

@@ -5,11 +5,187 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.1.0] - 2020-10-23
+
+### Added
+
+- Added Text.with_indentation_guide
+- Added Text.detect_indentation
+- Added Pretty.indent_guides
+- Added Syntax.indent_guides
+- Added indent_guides parameter on pretty.install
+- Added rich.pretty.pprint
+- Added max_length to Pretty
+
+### Changed
+
+- Enabled indent guides on Tracebacks
+
+### Fixed
+
+- Fixed negative time remaining in Progress bars https://github.com/willmcgugan/rich/issues/378
+
+## [9.0.1] - 2020-10-19
+
+### Fixed
+
+- Fixed broken ANSI codes in input on windows legacy https://github.com/willmcgugan/rich/issues/393
+
+## [9.0.0] - 2020-10-18
+
+### Fixed
+
+- Progress download column now displays decimal units
+
+### Added
+
+- Support for Python 3.9
+- Added legacy_windows to ConsoleOptions
+- Added ascii_only to ConsoleOptions
+- Added box.SQUARE_DOUBLE_HEAD
+- Added highlighting of EUI-48 and EUI-64 (MAC addresses)
+- Added Console.pager
+- Added Console.out
+- Added binary_units in progress download column
+- Added Progress.reset
+- Added Style.background_style property
+- Added Bar renderable https://github.com/willmcgugan/rich/pull/361
+- Added Table.min_width
+- Added table.Column.min_width and table.Column.max_width, and same to Table.add_column
+
+### Changed
+
+- Dropped box.get_safe_box function in favor of Box.substitute
+- Changed default padding in Panel from 0 to (0, 1) https://github.com/willmcgugan/rich/issues/385
+- Table with row_styles will extend background color between cells if the box has no vertical dividerhttps://github.com/willmcgugan/rich/issues/383
+- Changed default of fit kwarg in render_group() from False to True
+- Renamed rich.bar to rich.progress_bar, and Bar class to ProgressBar, rich.bar is now the new solid bar class
+
+### Fixed
+
+- Fixed typo in `Style.transparent_background` method name.
+
+## [8.0.0] - 2020-10-03
+
+### Added
+
+- Added Console.bell method
+- Added Set to types that Console.print will automatically pretty print
+- Added show_locals to Traceback
+- Added theme stack mechanism, see Console.push_theme and Console.pop_theme
+
+### Changed
+
+- Changed Style.empty to Style.null to better reflect what it does
+- Optimized combining styles involving a null style
+- Change error messages in Style.parse to read better
+
+### Fixed
+
+- Fixed Table.\_\_rich_measure\_\_
+- Fixed incorrect calculation of fixed width columns
+
+## [7.1.0] - 2020-09-26
+
+### Added
+
+- Added Console.begin_capture, Console.end_capture and Console.capture
+- Added Table.title_justify and Table.caption_justify https://github.com/willmcgugan/rich/issues/301
+
+### Changed
+
+- Improved formatting of exceptions
+- Enabled Rich exceptions in logging https://github.com/taliraj
+- UTF-8 encoding is now mentioned in HTML head section
+
+### Removed
+
+- Removed line_numbers argument from traceback.install, which was undocumented and did nothing
+
+## [7.0.0] - 2020-09-18
+
+### Added
+
+- New ansi_dark and ansi_light themes
+- Added Text.append_tokens for fast appending of string + Style pairs
+- Added Text.remove_suffix
+- Added Text.append_tokens
+
+### Changed
+
+- Text.tabs_to_spaces was renamed to Text.expand_tabs, which works in place rather than returning a new instance
+- Renamed Column.index to Column.\_index
+- Optimized Style.combine and Style.chain
+- Optimized text rendering by fixing internal cache mechanism
+- Optimized hash generation for Styles
+
+## [6.2.0] - 2020-09-13
+
+### Added
+
+- Added inline code highlighting to Markdown
+
+## [6.1.2] - 2020-09-11
+
+### Added
+
+- Added ipv4 and ipv6 to ReprHighlighter
+
+### Changed
+
+- The `#` sign is included in url highlighting
+
+### Fixed
+
+- Fixed force-color switch in rich.syntax and rich.markdown commands
+
+## [6.1.1] - 2020-09-07
+
+### Changed
+
+- Restored "def" in inspect signature
+
+## [6.1.0] - 2020-09-07
+
+### Added
+
+- New inspect module
+- Added os.\_Environ to pretty print
+
+### Fixed
+
+- Prevented recursive renderables from getting stuck
+
+## Changed
+
+- force_terminal and force_jupyter can now be used to force the disabled state, or left as None to auto-detect.
+- Panel now expands to fit title if supplied
+
+## [6.0.0] - 2020-08-25
+
+### Fixed
+
+- Fixed use of `__rich__` cast
+
+### Changed
+
+- New algorithm to pretty print which fits more on a line if possible
+- Deprecated `character` parameter in Rule and Console.rule, in favor of `characters`
+- Optimized Syntax.from_path to avoid searching all lexers, which also speeds up tracebacks
+
+### Added
+
+- Added soft_wrap flag to Console.print
+
 ## [5.2.1] - 2020-08-19
+
+### Fixed
 
 - Fixed underscore with display hook https://github.com/willmcgugan/rich/issues/235
 
 ## [5.2.0] - 2020-08-14
+
+### Changed
 
 - Added crop argument to Console.print
 - Added "ignore" overflow method

@@ -286,12 +286,31 @@ class Color(NamedTuple):
             return ColorSystem.STANDARD
         return ColorSystem(int(self.type))
 
+    @property
+    def is_system_defined(self) -> bool:
+        """Check if the color is ultimately defined by the system."""
+        return self.system not in (ColorSystem.EIGHT_BIT, ColorSystem.TRUECOLOR)
+
+    @property
+    def is_default(self) -> bool:
+        """Check if the color is a default color."""
+        return self.type == ColorType.DEFAULT
+
     def get_truecolor(
         self, theme: "TerminalTheme" = None, foreground=True
     ) -> ColorTriplet:
+        """Get an equivalent color triplet for this color.
+
+        Args:
+            theme (TerminalTheme, optional): Optional terminal theme, or None to use default. Defaults to None.
+            foreground (bool, optional): True for a foreground color, or False for background. Defaults to True.
+
+        Returns:
+            ColorTriplet: A color triplet containing RGB components.
+        """
+
         if theme is None:
             theme = DEFAULT_TERMINAL_THEME
-        """Get a color triplet for this color."""
         if self.type == ColorType.TRUECOLOR:
             assert self.triplet is not None
             return self.triplet
@@ -311,19 +330,33 @@ class Color(NamedTuple):
     @classmethod
     def from_triplet(cls, triplet: "ColorTriplet") -> "Color":
         """Create a truecolor RGB color from a triplet of values.
-        
+
         Args:
             triplet (ColorTriplet): A color triplet containing red, green and blue components.
-        
+
         Returns:
             Color: A new color object.
         """
         return cls(name=triplet.hex, type=ColorType.TRUECOLOR, triplet=triplet)
 
     @classmethod
+    def from_rgb(cls, red: float, green: float, blue: float) -> "Color":
+        """Create a truecolor from three color components in the range(0->255).
+
+        Args:
+            red (float): Red component.
+            green (float): Green component.
+            blue (float): Blue component.
+
+        Returns:
+            Color: A new color object.
+        """
+        return cls.from_triplet(ColorTriplet(int(red), int(green), int(blue)))
+
+    @classmethod
     def default(cls) -> "Color":
         """Get a Color instance representing the default color.
-        
+
         Returns:
             Color: Default color.
         """
@@ -333,6 +366,7 @@ class Color(NamedTuple):
     @lru_cache(maxsize=1024)
     def parse(cls, color: str) -> "Color":
         """Parse a color definition."""
+        original_color = color
         color = color.lower().strip()
 
         if color == "default":
@@ -348,7 +382,7 @@ class Color(NamedTuple):
 
         color_match = RE_COLOR.match(color)
         if color_match is None:
-            raise ColorParseError(f"{color!r} is not a valid color")
+            raise ColorParseError(f"{original_color!r} is not a valid color")
 
         color_24, color_8, color_rgb = color_match.groups()
         if color_24:
@@ -370,11 +404,15 @@ class Color(NamedTuple):
         else:  #  color_rgb:
             components = color_rgb.split(",")
             if len(components) != 3:
-                raise ColorParseError(f"expected three components in {color!r}")
+                raise ColorParseError(
+                    f"expected three components in {original_color!r}"
+                )
             red, green, blue = components
             triplet = ColorTriplet(int(red), int(green), int(blue))
             if not all(component <= 255 for component in triplet):
-                raise ColorParseError(f"color components must be <= 255 in {color!r}")
+                raise ColorParseError(
+                    f"color components must be <= 255 in {original_color!r}"
+                )
             return cls(color, ColorType.TRUECOLOR, triplet=triplet)
 
     @lru_cache(maxsize=1024)
@@ -489,7 +527,7 @@ def blend_rgb(
 if __name__ == "__main__":  # pragma: no cover
 
     from .console import Console
-    from .table import Column, Table
+    from .table import Table
     from .text import Text
     from . import box
 

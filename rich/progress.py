@@ -27,7 +27,7 @@ from typing import (
 )
 
 from . import filesize, get_console
-from .bar import Bar
+from .progress_bar import ProgressBar
 from .console import (
     Console,
     ConsoleRenderable,
@@ -47,7 +47,6 @@ from .text import Text
 TaskID = NewType("TaskID", int)
 
 ProgressType = TypeVar("ProgressType")
-
 
 GetTimeCallable = Callable[[], float]
 
@@ -75,6 +74,7 @@ class _TrackThread(Thread):
             if last_completed != completed:
                 advance(task_id, completed - last_completed)
                 last_completed = completed
+
         self.progress.update(self.task_id, completed=self.completed, refresh=True)
 
     def __enter__(self) -> "_TrackThread":
@@ -102,7 +102,7 @@ def track(
     update_period: float = 0.1,
 ) -> Iterable[ProgressType]:
     """Track progress by iterating over a sequence.
-    
+
     Args:
         sequence (Iterable[ProgressType]): A sequence (must support "len") you wish to iterate over.
         description (str, optional): Description of task show next to progress bar. Defaults to "Working".
@@ -113,12 +113,12 @@ def track(
         refresh_per_second (Optional[int], optional): Number of times per second to refresh the progress information, or None to use default. Defaults to None.
         style (StyleType, optional): Style for the bar background. Defaults to "bar.back".
         complete_style (StyleType, optional): Style for the completed bar. Defaults to "bar.complete".
-        finished_style (StyleType, optional): Style for a finished bar. Defaults to "bar.done".   
-        pulse_style (StyleType, optional): Style for pulsing bars. Defaults to "bar.pulse". 
+        finished_style (StyleType, optional): Style for a finished bar. Defaults to "bar.done".
+        pulse_style (StyleType, optional): Style for pulsing bars. Defaults to "bar.pulse".
         update_period (float, optional): Minimum time (in seconds) between calls to update(). Defaults to 0.1.
     Returns:
         Iterable[ProgressType]: An iterable of the values in the sequence.
-    
+
     """
 
     columns: List["ProgressColumn"] = (
@@ -145,9 +145,10 @@ def track(
         refresh_per_second=refresh_per_second,
     )
 
-    yield from progress.track(
-        sequence, total=total, description=description, update_period=update_period
-    )
+    with progress:
+        yield from progress.track(
+            sequence, total=total, description=description, update_period=update_period
+        )
 
 
 class ProgressColumn(ABC):
@@ -161,10 +162,10 @@ class ProgressColumn(ABC):
 
     def __call__(self, task: "Task") -> RenderableType:
         """Called by the Progress object to return a renderable for the given task.
-        
+
         Args:
             task (Task): An object containing information regarding the task.
-        
+
         Returns:
             RenderableType: Anything renderable (including str).
         """
@@ -205,7 +206,7 @@ class TextColumn(ProgressColumn):
         self.highlighter = highlighter
         super().__init__()
 
-    def render(self, task: "Task"):
+    def render(self, task: "Task") -> Text:
         _text = self.text_format.format(task=task)
         if self.markup:
             text = Text.from_markup(_text, style=self.style, justify=self.justify)
@@ -242,9 +243,9 @@ class BarColumn(ProgressColumn):
         self.pulse_style = pulse_style
         super().__init__()
 
-    def render(self, task: "Task") -> Bar:
+    def render(self, task: "Task") -> ProgressBar:
         """Gets a progress bar widget for a task."""
-        return Bar(
+        return ProgressBar(
             total=max(0, task.total),
             completed=max(0, task.completed),
             width=None if self.bar_width is None else max(1, self.bar_width),
@@ -291,15 +292,30 @@ class TotalFileSizeColumn(ProgressColumn):
 
 
 class DownloadColumn(ProgressColumn):
-    """Renders file size downloaded and total, e.g. '0.5/2.3 GB'."""
+    """Renders file size downloaded and total, e.g. '0.5/2.3 GB'.
+
+    Args:
+        binary_units (bool, optional): Use binary units, KiB, MiB etc. Defaults to False.
+    """
+
+    def __init__(self, binary_units: bool = False) -> None:
+        self.binary_units = binary_units
+        super().__init__()
 
     def render(self, task: "Task") -> Text:
         """Calculate common unit for completed and total."""
         completed = int(task.completed)
         total = int(task.total)
-        unit, suffix = filesize.pick_unit_and_suffix(
-            total, ["bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"], 1024
-        )
+        if self.binary_units:
+            unit, suffix = filesize.pick_unit_and_suffix(
+                total,
+                ["bytes", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"],
+                1024,
+            )
+        else:
+            unit, suffix = filesize.pick_unit_and_suffix(
+                total, ["bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"], 1000
+            )
         completed_ratio = completed / unit
         total_ratio = total / unit
         precision = 0 if unit == 1 else 1
@@ -334,7 +350,7 @@ class ProgressSample(NamedTuple):
 @dataclass
 class Task:
     """Information regarding a progress task.
-    
+
     This object should be considered read-only outside of the :class:`~Progress` class.
 
     """
@@ -435,6 +451,10 @@ class Task:
         estimate = ceil(self.remaining / speed)
         return estimate
 
+    def _reset(self) -> None:
+        """Reset progress."""
+        self._progress.clear()
+
 
 class _RefreshThread(Thread):
     """A thread that calls refresh() on the Process object at regular intervals."""
@@ -491,15 +511,15 @@ class _FileProxy(io.TextIOBase):
 
 class Progress(JupyterMixin, RenderHook):
     """Renders an auto-updating progress bar(s).
-    
+
     Args:
         console (Console, optional): Optional Console instance. Default will an internal Console instance writing to stdout.
         auto_refresh (bool, optional): Enable auto refresh. If disabled, you will need to call `refresh()`.
         refresh_per_second (Optional[int], optional): Number of times per second to refresh the progress information or None to use default (10). Defaults to None.
         speed_estimate_period: (float, optional): Period (in seconds) used to calculate the speed estimate. Defaults to 30.
         transient: (bool, optional): Clear the progress on exit. Defaults to False.
-        redirect_stout: (bool, optional): Enable redirection of stdout, so ``print`` may be used. Defaults to True.
-        redirect_stout: (bool, optional): Enable redirection of stderr. Defaults to True.
+        redirect_stdout: (bool, optional): Enable redirection of stdout, so ``print`` may be used. Defaults to True.
+        redirect_stderr: (bool, optional): Enable redirection of stderr. Defaults to True.
         get_time: (Callable, optional): A callable that gets the current time, or None to use time.monotonic. Defaults to None.
     """
 
@@ -638,14 +658,14 @@ class Progress(JupyterMixin, RenderHook):
         update_period: float = 0.1,
     ) -> Iterable[ProgressType]:
         """Track progress by iterating over a sequence.
-        
+
         Args:
             sequence (Sequence[ProgressType]): A sequence of values you want to iterate over and track progress.
             total: (int, optional): Total number of steps. Default is len(sequence).
             task_id: (TaskID): Task to track. Default is new task.
             description: (str, optional): Description of task, if new task is created.
             update_period (float, optional): Minimum time (in seconds) between calls to update(). Defaults to 0.1.
-        
+
         Returns:
             Iterable[ProgressType]: An iterable of values taken from the provided sequence.
         """
@@ -663,26 +683,26 @@ class Progress(JupyterMixin, RenderHook):
             task_id = self.add_task(description, total=task_total)
         else:
             self.update(task_id, total=task_total)
-        with self:
-            if self.auto_refresh:
-                with _TrackThread(self, task_id, update_period) as track_thread:
-                    for value in sequence:
-                        yield value
-                        track_thread.completed += 1
-            else:
-                advance = self.advance
-                refresh = self.refresh
+
+        if self.auto_refresh:
+            with _TrackThread(self, task_id, update_period) as track_thread:
                 for value in sequence:
                     yield value
-                    advance(task_id, 1)
-                    refresh()
+                    track_thread.completed += 1
+        else:
+            advance = self.advance
+            refresh = self.refresh
+            for value in sequence:
+                yield value
+                advance(task_id, 1)
+                refresh()
 
     def start_task(self, task_id: TaskID) -> None:
         """Start a task.
 
         Starts a task (used when calculating elapsed time). You may need to call this manually,
         if you called ``add_task`` with ``start=False``.
-        
+
         Args:
             task_id (TaskID): ID of task.
         """
@@ -695,7 +715,7 @@ class Progress(JupyterMixin, RenderHook):
         """Stop a task.
 
         This will freeze the elapsed time on the task.
-        
+
         Args:
             task_id (TaskID): ID of task.
         """
@@ -719,9 +739,9 @@ class Progress(JupyterMixin, RenderHook):
         **fields: Any,
     ) -> None:
         """Update information associated with a task.
-        
+
         Args:
-            task_id (TaskID): Task id (returned by add_task).            
+            task_id (TaskID): Task id (returned by add_task).
             total (float, optional): Updates task.total if not None.
             completed (float, optional): Updates task.completed if not None.
             advance (float, optional): Add a value to task.completed if not None.
@@ -736,6 +756,7 @@ class Progress(JupyterMixin, RenderHook):
 
             if total is not None:
                 task.total = total
+                task._reset()
             if advance is not None:
                 task.completed += advance
             if completed is not None:
@@ -757,13 +778,50 @@ class Progress(JupyterMixin, RenderHook):
             popleft = _progress.popleft
             while _progress and _progress[0].timestamp < old_sample_time:
                 popleft()
-            while len(_progress) > 20:
+            while len(_progress) > 1000:
                 popleft()
-            _progress.append(ProgressSample(current_time, update_completed))
+            if update_completed > 0:
+                _progress.append(ProgressSample(current_time, update_completed))
+
+    def reset(
+        self,
+        task_id: TaskID,
+        *,
+        start: bool = True,
+        total: Optional[int] = None,
+        completed: int = 0,
+        visible: Optional[bool] = None,
+        description: Optional[str] = None,
+        **fields: Any,
+    ) -> None:
+        """Reset a task so completed is 0 and the clock is reset.
+
+        Args:
+            task_id (TaskID): ID of task.
+            start (bool, optional): Start the task after reset. Defaults to True.
+            total (int, optional): New total steps in task, or None to use current total. Defaults to None.
+            completed (int, optional): Number of steps completed. Defaults to 0.
+            **fields (str): Additional data fields required for rendering.
+        """
+        current_time = self.get_time()
+        with self._lock:
+            task = self._tasks[task_id]
+            task._reset()
+            task.start_time = current_time if start else None
+            if total is not None:
+                task.total = total
+            task.completed = completed
+            if visible is not None:
+                task.visible = visible
+            if fields:
+                task.fields = fields
+            if description is not None:
+                task.description = description
+            self.refresh()
 
     def advance(self, task_id: TaskID, advance: float = 1) -> None:
         """Advance task by a number of steps.
-        
+
         Args:
             task_id (TaskID): ID of task.
             advance (float): Number of steps to advance. Default is 1.
@@ -780,7 +838,7 @@ class Progress(JupyterMixin, RenderHook):
             popleft = _progress.popleft
             while _progress and _progress[0].timestamp < old_sample_time:
                 popleft()
-            while len(_progress) > 10:
+            while len(_progress) > 1000:
                 popleft()
             _progress.append(ProgressSample(current_time, update_completed))
 
@@ -859,7 +917,7 @@ class Progress(JupyterMixin, RenderHook):
         **fields: Any,
     ) -> TaskID:
         """Add a new 'task' to the Progress display.
-        
+
         Args:
             description (str): A description of the task.
             start (bool, optional): Start the task immediately (to calculate elapsed time). If set to False,
@@ -868,7 +926,7 @@ class Progress(JupyterMixin, RenderHook):
             completed (int, optional): Number of steps completed so far.. Defaults to 0.
             visible (bool, optional): Enable display of the task. Defaults to True.
             **fields (str): Additional data fields required for rendering.
-        
+
         Returns:
             TaskID: An ID you can use when calling `update`.
         """
@@ -893,10 +951,10 @@ class Progress(JupyterMixin, RenderHook):
 
     def remove_task(self, task_id: TaskID) -> None:
         """Delete a task if it exists.
-        
+
         Args:
             task_id (TaskID): A task ID.
-        
+
         """
         with self._lock:
             del self._tasks[task_id]
@@ -926,7 +984,7 @@ if __name__ == "__main__":  # pragma: no coverage
 
     syntax = Syntax(
         '''def loop_last(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:
-    """Iterate and generate a tup`le with a flag for last value."""
+    """Iterate and generate a tuple with a flag for last value."""
     iter_values = iter(values)
     try:
         previous_value = next(iter_values)
